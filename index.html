@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>逆転じゃんけん — 説得の心理戦</title>
+  <link href="https://fonts.googleapis.com/css?family=Noto+Sans+JP:wght@400;700;900" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: "Noto Sans JP", sans-serif;
+      background: linear-gradient(180deg, #0a0e27 0%, #1a1a2e 100%);
+      color: #e8e8e8;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    main { max-width: 720px; margin: 0 auto; }
+
+    /* タイトル画面 */
+    #title-screen { text-align: center; padding: 60px 20px; }
+    #title-screen h1 {
+      font-size: 48px; font-weight: 900;
+      background: linear-gradient(90deg, #ffd700, #ff6b35);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    #title-screen .subtitle { color: #aaa; margin-bottom: 40px; font-size: 16px; }
+    #title-screen .difficulty { display: flex; flex-direction: column; gap: 12px; max-width: 320px; margin: 0 auto; }
+    #title-screen button {
+      padding: 16px;
+      background: #1f2447;
+      border: 2px solid #3d4280;
+      color: #fff;
+      font-size: 16px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 4px;
+    }
+    #title-screen button:hover { background: #2a3266; border-color: #ffd700; }
+    #title-screen button .label { font-size: 12px; color: #ffd700; display: block; margin-top: 4px; }
+
+    /* ゲーム画面 */
+    #game-screen { display: none; }
+    #game-screen.active { display: block; }
+
+    .opponent-card {
+      background: rgba(20, 20, 40, 0.9);
+      border: 2px solid #5d2a5d;
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 16px;
+      position: relative;
+    }
+    .opponent-face { font-size: 64px; text-align: center; margin-bottom: 8px; }
+    .opponent-name {
+      text-align: center; color: #ff6b9d;
+      font-weight: 700; margin-bottom: 16px;
+    }
+    .opponent-line {
+      background: #0d0d1f;
+      padding: 16px;
+      border-left: 4px solid #ffd700;
+      font-size: 18px;
+      line-height: 1.6;
+      min-height: 60px;
+    }
+
+    /* 心理パネル (Structured Outputs可視化) */
+    .state-panel {
+      background: rgba(15, 15, 30, 0.95);
+      border: 1px solid #3d4280;
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .state-panel h3 {
+      font-size: 12px;
+      color: #888;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+    .bar-row { margin-bottom: 10px; }
+    .bar-row .bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+    .bar-row .bar-name { color: #ccc; }
+    .bar-row .bar-value { color: #ffd700; font-weight: 700; font-family: monospace; }
+    .bar-track {
+      background: #0a0a1a;
+      height: 14px;
+      border-radius: 7px;
+      overflow: hidden;
+      border: 1px solid #2a2a4a;
+    }
+    .bar-fill {
+      height: 100%;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      border-radius: 6px;
+    }
+    .bar-fill.fight { background: linear-gradient(90deg, #ff3366, #ff6b35); }
+    .bar-fill.guard { background: linear-gradient(90deg, #4a90e2, #6c5ce7); }
+    .bar-fill.empathy { background: linear-gradient(90deg, #00d4aa, #1abc9c); }
+    .bar-fill.yield { background: linear-gradient(90deg, #ffd700, #ff9500); }
+
+    /* メタ情報 */
+    .meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 16px;
+      padding: 0 4px;
+    }
+    .meta strong { color: #ffd700; }
+
+    /* 選択肢 */
+    .choices { display: flex; flex-direction: column; gap: 8px; }
+    .choices button {
+      text-align: left;
+      padding: 14px 16px;
+      background: #1a1a2e;
+      border: 1px solid #3d4280;
+      color: #fff;
+      font-size: 15px;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 4px;
+    }
+    .choices button:hover {
+      background: #2a2a4a;
+      border-color: #ffd700;
+      transform: translateX(4px);
+    }
+
+    /* じゃんけん画面 */
+    #janken-screen { display: none; text-align: center; padding: 40px 20px; }
+    #janken-screen.active { display: block; }
+    #janken-screen .prompt {
+      font-size: 20px;
+      margin-bottom: 8px;
+      color: #ffd700;
+    }
+    #janken-screen .sub {
+      color: #aaa;
+      font-size: 14px;
+      margin-bottom: 32px;
+    }
+    .hands {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hands button {
+      width: 140px;
+      height: 140px;
+      background: #1a1a2e;
+      border: 2px solid #3d4280;
+      color: #fff;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    .hands button:hover {
+      background: #2a2a4a;
+      border-color: #ffd700;
+      transform: translateY(-4px);
+    }
+    .hands .emoji { font-size: 56px; }
+    .hands .label { font-size: 14px; color: #ccc; }
+
+    .showdown {
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      margin: 32px 0;
+    }
+    .showdown .side { text-align: center; flex: 1; }
+    .showdown .side .who { font-size: 13px; color: #888; margin-bottom: 8px; }
+    .showdown .side .hand { font-size: 88px; }
+    .showdown .vs { font-size: 24px; color: #ff6b35; font-weight: 900; }
+
+    /* 結果画面 */
+    #result-screen { display: none; text-align: center; padding: 60px 20px; }
+    #result-screen.active { display: block; }
+    #result-screen h2 { font-size: 36px; margin-bottom: 16px; }
+    #result-screen.win h2 {
+      background: linear-gradient(90deg, #ffd700, #ff9500);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    #result-screen.lose h2 { color: #ff3366; }
+    #result-screen .result-line {
+      background: rgba(20, 20, 40, 0.9);
+      padding: 20px;
+      border-radius: 8px;
+      margin: 24px auto;
+      max-width: 480px;
+      line-height: 1.7;
+      text-align: left;
+    }
+    #result-screen button {
+      padding: 12px 32px;
+      background: #1f2447;
+      border: 2px solid #ffd700;
+      color: #ffd700;
+      font-size: 16px;
+      font-family: inherit;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <!-- タイトル画面 -->
+    <section id="title-screen">
+      <h1>逆転じゃんけん</h1>
+      <p class="subtitle">— 99連勝の絶対王者を、言葉で「負けたい」と思わせろ —</p>
+      <div class="difficulty">
+        <button data-turns="3">3ターン<span class="label">HARD — 言葉のみで仕留める</span></button>
+        <button data-turns="5">5ターン<span class="label">NORMAL — 推奨難易度</span></button>
+        <button data-turns="10">10ターン<span class="label">EASY — じっくり崩す</span></button>
+      </div>
+    </section>
+
+    <!-- ゲーム画面 -->
+    <section id="game-screen">
+      <div class="opponent-card">
+        <div class="opponent-face">😈</div>
+        <div class="opponent-name">闇のジャンケン王 — 黒崎 玄武（99連勝）</div>
+        <div class="opponent-line" id="opponent-line"></div>
+      </div>
+
+      <div class="state-panel">
+        <h3>▼ 相手の心理状態 (Structured)</h3>
+        <div class="bar-row">
+          <div class="bar-label"><span class="bar-name">闘志 fight</span><span class="bar-value" id="val-fight">90</span></div>
+          <div class="bar-track"><div class="bar-fill fight" id="bar-fight"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span class="bar-name">警戒 guard</span><span class="bar-value" id="val-guard">70</span></div>
+          <div class="bar-track"><div class="bar-fill guard" id="bar-guard"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span class="bar-name">共感 empathy</span><span class="bar-value" id="val-empathy">10</span></div>
+          <div class="bar-track"><div class="bar-fill empathy" id="bar-empathy"></div></div>
+        </div>
+        <div class="bar-row">
+          <div class="bar-label"><span class="bar-name">譲歩 yield</span><span class="bar-value" id="val-yield">5</span></div>
+          <div class="bar-track"><div class="bar-fill yield" id="bar-yield"></div></div>
+        </div>
+      </div>
+
+      <div class="meta">
+        <span>残りターン: <strong id="turns-left">5</strong></span>
+        <span>勝利: 譲歩≥70 & 共感≥50 / 敗北: 警戒≥95</span>
+      </div>
+
+      <div class="choices" id="choices"></div>
+    </section>
+
+    <!-- じゃんけん画面 -->
+    <section id="janken-screen">
+      <div class="opponent-card">
+        <div class="opponent-face" id="janken-face">😈</div>
+        <div class="opponent-name">闇のジャンケン王 — 黒崎 玄武</div>
+        <div class="opponent-line" id="janken-line"></div>
+      </div>
+      <p class="prompt">じゃんけん…</p>
+      <p class="sub">あなたの手を選べ</p>
+      <div class="hands">
+        <button data-hand="グー"><span class="emoji">✊</span><span class="label">グー</span></button>
+        <button data-hand="チョキ"><span class="emoji">✌️</span><span class="label">チョキ</span></button>
+        <button data-hand="パー"><span class="emoji">✋</span><span class="label">パー</span></button>
+      </div>
+      <div class="showdown" id="showdown" style="display:none;">
+        <div class="side"><div class="who">あなた</div><div class="hand" id="player-hand">？</div></div>
+        <div class="vs">VS</div>
+        <div class="side"><div class="who">黒崎</div><div class="hand" id="opponent-hand">？</div></div>
+      </div>
+    </section>
+
+    <!-- 結果画面 -->
+    <section id="result-screen">
+      <h2 id="result-title"></h2>
+      <div class="result-line" id="result-line"></div>
+      <button id="restart">もう一度</button>
+    </section>
+  </main>
+
+  <script>
+    // ===== ゲームデータ =====
+    const INITIAL_STATE = { fight: 90, guard: 70, empathy: 10, yield: 5 };
+    const WIN_THRESHOLD = { yield: 70, empathy: 50 };
+    const LOSE_THRESHOLD = { guard: 95 };
+
+    // 選択肢プール (16個)
+    // Structured概念: 各選択肢が4軸への影響(effect)を構造化データとして持つ
+    const choicePool = [
+      { id: 1, text: "「あんた、勝つこと以外に何が残ってる？」", effect: { fight: -10, empathy: +15, guard: +5 }, reaction: "…くだらん質問だ。だが、なぜそれを聞く？" },
+      { id: 2, text: "「俺は本気で、あんたみたいな強さに憧れてる」", effect: { guard: -10, empathy: +20, fight: -5 }, reaction: "…皮肉でなく、か。少し、座れ。" },
+      { id: 3, text: "「あんたが負けたら、何が変わると思う？」", effect: { fight: -15, yield: +10, empathy: +5 }, reaction: "…考えたこともなかった。" },
+      { id: 4, text: "「99連勝、しんどないか？」", effect: { guard: -5, empathy: +25, fight: -10 }, reaction: "…ふん。誰にも聞かれたことがなかった、その問い。" },
+      { id: 5, text: "「俺もあんたみたいに、ずっと走ってきた」", effect: { empathy: +20, guard: -10 }, reaction: "ほう…。お前も、か。" },
+      { id: 6, text: "「次の挑戦者に席を譲る勇気、あるか？」", effect: { fight: -20, yield: +25, guard: +10 }, reaction: "…なんだと？挑発か。" },
+      { id: 7, text: "「勝ち続けて、見えなくなったものはあるか？」", effect: { fight: -15, empathy: +15, yield: +10 }, reaction: "…黙れ。だが…そうかもしれん。" },
+      { id: 8, text: "「俺は勝ちたいわけやない。伝えたいことがある」", effect: { guard: -15, empathy: +10, fight: -5 }, reaction: "…伝えたいこと？言ってみろ。" },
+      { id: 9, text: "「最初に負けた相手のこと、覚えてるか？」", effect: { fight: -10, empathy: +20, yield: +5 }, reaction: "…ああ。覚えている。あの時の俺は、まだ…" },
+      { id: 10, text: "「あんたを倒したいんやない。隣に立ちたい」", effect: { guard: -20, empathy: +30, yield: +10 }, reaction: "…そんな言葉、初めて聞いた。" },
+      { id: 11, text: "「お前みたいなやつ、簡単に倒せる」", effect: { fight: +15, guard: +20, empathy: -10 }, reaction: "ふん、口だけだな。" },
+      { id: 12, text: "「99連勝？運がよかっただけやろ」", effect: { fight: +20, guard: +15 }, reaction: "…次の試合で、後悔させてやる。" },
+      { id: 13, text: "「あんた、ジャンケン以外に何が好きや？」", effect: { guard: -5, empathy: +8 }, reaction: "…ジャンケンだ、当然。…いや、本当にそうか？" },
+      { id: 14, text: "「あんたの勝利を、もう誰も見てくれてないやろ？」", effect: { fight: -25, yield: +20, empathy: +5 }, reaction: "…！なんで、それを…" },
+      { id: 15, text: "「次の世代に何を残せる？勝ち方じゃない、負け方や」", effect: { fight: -20, yield: +30, empathy: +15 }, reaction: "…俺は、勝ち方しか知らんかった。" },
+      { id: 16, text: "「あんたが王座にいる限り、誰もあんたの隣に来れん」", effect: { fight: -15, yield: +20, guard: -5 }, reaction: "…孤独だと、言いたいのか。" },
+    ];
+
+    const INTRO = "ふっ…99連勝の俺に、何ができる？じゃんけんで俺を倒す前に、まず言葉で来い。";
+
+    // ===== ゲーム状態 =====
+    let state = { ...INITIAL_STATE };
+    let turnsLeft = 0;
+    const usedChoices = new Set();
+
+    // 説得フェーズの結果（じゃんけん画面に持ち越す）
+    let persuasionOutcome = null; // "win" | "lose-turn" | "lose-guard"
+
+    // じゃんけんの絵文字マップ
+    const HAND_EMOJI = { "グー": "✊", "チョキ": "✌️", "パー": "✋" };
+
+    // ===== DOM参照 =====
+    const $ = (id) => document.getElementById(id);
+    const titleScreen = $("title-screen");
+    const gameScreen = $("game-screen");
+    const jankenScreen = $("janken-screen");
+    const resultScreen = $("result-screen");
+
+    // ===== 共通関数 =====
+    const clamp = (v) => Math.max(0, Math.min(100, v));
+    const shuffle = (arr) => arr.slice().sort(() => Math.random() - 0.5);
+
+    function show(screen) {
+      titleScreen.style.display = "none";
+      gameScreen.classList.remove("active");
+      jankenScreen.classList.remove("active");
+      resultScreen.classList.remove("active");
+      resultScreen.classList.remove("win", "lose");
+
+      if (screen === "title") titleScreen.style.display = "block";
+      if (screen === "game") gameScreen.classList.add("active");
+      if (screen === "janken") jankenScreen.classList.add("active");
+      if (screen === "result") resultScreen.classList.add("active");
+    }
+
+    // ===== ゲームロジック =====
+    function startGame(turns) {
+      state = { ...INITIAL_STATE };
+      turnsLeft = turns;
+      usedChoices.clear();
+      show("game");
+      renderState();
+      sayLine(INTRO);
+      renderChoices();
+    }
+
+    function renderState() {
+      ["fight", "guard", "empathy", "yield"].forEach((key) => {
+        const v = clamp(state[key]);
+        $(`val-${key}`).textContent = v;
+        $(`bar-${key}`).style.width = v + "%";
+      });
+      $("turns-left").textContent = turnsLeft;
+    }
+
+    function sayLine(text) {
+      $("opponent-line").textContent = text;
+    }
+
+    function renderChoices() {
+      const available = choicePool.filter((c) => !usedChoices.has(c.id));
+      const sample = shuffle(available).slice(0, 3);
+      const container = $("choices");
+      container.innerHTML = "";
+      sample.forEach((choice) => {
+        const btn = document.createElement("button");
+        btn.textContent = choice.text;
+        btn.addEventListener("click", () => pickChoice(choice));
+        container.appendChild(btn);
+      });
+    }
+
+    function pickChoice(choice) {
+      usedChoices.add(choice.id);
+
+      // Structured effect適用
+      Object.entries(choice.effect).forEach(([key, delta]) => {
+        state[key] = clamp(state[key] + delta);
+      });
+
+      sayLine(choice.reaction);
+      turnsLeft--;
+      renderState();
+
+      // 説得フェーズの判定 → じゃんけん画面へ
+      if (state.yield >= WIN_THRESHOLD.yield && state.empathy >= WIN_THRESHOLD.empathy) {
+        setTimeout(() => goToJanken("win"), 800);
+        return;
+      }
+      if (state.guard >= LOSE_THRESHOLD.guard) {
+        setTimeout(() => goToJanken("lose-guard"), 800);
+        return;
+      }
+      if (turnsLeft <= 0) {
+        setTimeout(() => goToJanken("lose-turn"), 800);
+        return;
+      }
+
+      renderChoices();
+    }
+
+    function goToJanken(outcome) {
+      persuasionOutcome = outcome;
+      show("janken");
+
+      // 説得結果に応じた前置きセリフ
+      if (outcome === "win") {
+        $("janken-face").textContent = "😌";
+        $("janken-line").textContent = "「…分かった。もう一度、本気のじゃんけんを。お前を信じる」";
+      } else if (outcome === "lose-guard") {
+        $("janken-face").textContent = "😡";
+        $("janken-line").textContent = "「もう聞かん。じゃんけんで決着をつけろ」";
+      } else {
+        $("janken-face").textContent = "😏";
+        $("janken-line").textContent = "「悪くない議論だった。だが、勝負は勝負だ」";
+      }
+
+      // 手選択UIを表示・対戦結果は非表示
+      document.querySelector("#janken-screen .hands").style.display = "flex";
+      document.querySelector("#janken-screen .prompt").style.display = "block";
+      document.querySelector("#janken-screen .sub").style.display = "block";
+      $("showdown").style.display = "none";
+    }
+
+    function playJanken(playerHand) {
+      // 黒崎の手を決定
+      // - 説得勝ち: プレイヤーが勝つ手を出す（負けようとする）
+      // - 説得負け(guard): プレイヤーが負ける手を出す（容赦なく勝つ）
+      // - 説得負け(turn): あいこ含む通常勝負（5割で黒崎が勝つ寄り）
+      const beats = { "グー": "チョキ", "チョキ": "パー", "パー": "グー" }; // playerHand が beats[playerHand] に勝つ
+      const losesTo = { "グー": "パー", "チョキ": "グー", "パー": "チョキ" };
+
+      let opponentHand;
+      if (persuasionOutcome === "win") {
+        opponentHand = beats[playerHand]; // 黒崎は負ける手
+      } else if (persuasionOutcome === "lose-guard") {
+        opponentHand = losesTo[playerHand]; // 黒崎は勝つ手
+      } else {
+        // ターン切れ: 70%で黒崎勝ち、20%あいこ、10%プレイヤー勝ち
+        const r = Math.random();
+        if (r < 0.7) opponentHand = losesTo[playerHand];
+        else if (r < 0.9) opponentHand = playerHand;
+        else opponentHand = beats[playerHand];
+      }
+
+      // 演出: 手選択UIを隠し、対戦結果を表示
+      document.querySelector("#janken-screen .hands").style.display = "none";
+      document.querySelector("#janken-screen .prompt").textContent = "ぽん！";
+      document.querySelector("#janken-screen .sub").style.display = "none";
+      $("showdown").style.display = "flex";
+      $("player-hand").textContent = HAND_EMOJI[playerHand];
+      $("opponent-hand").textContent = HAND_EMOJI[opponentHand];
+
+      // 勝敗判定 → 結果画面
+      let jankenResult;
+      if (playerHand === opponentHand) jankenResult = "draw";
+      else if (beats[playerHand] === opponentHand) jankenResult = "win";
+      else jankenResult = "lose";
+
+      setTimeout(() => endGame(persuasionOutcome, playerHand, opponentHand, jankenResult), 1500);
+    }
+
+    function endGame(outcome, playerHand, opponentHand, jankenResult) {
+      show("result");
+      const youWon = jankenResult === "win";
+      resultScreen.classList.add(youWon && outcome === "win" ? "win" : "lose");
+
+      const handLine = `あなたの<strong>${playerHand}</strong> vs 黒崎の<strong>${opponentHand}</strong>`;
+
+      if (outcome === "win" && youWon) {
+        $("result-title").textContent = "🏆 逆転勝訴！";
+        $("result-line").innerHTML = `
+          ${handLine}<br><br>
+          黒崎は静かに目を閉じた。<br>
+          「…次は、俺が挑戦者だ」<br><br>
+          黒崎は意図的に負けの手を選んだ。<br>
+          あなたの言葉が、99連勝を止めた。<br><br>
+          <em>説得の心理戦、完全勝利。</em>
+        `;
+      } else if (outcome === "win" && jankenResult === "draw") {
+        $("result-title").textContent = "🤝 心は通じた";
+        $("result-line").innerHTML = `
+          ${handLine}<br><br>
+          黒崎は微笑んだ。<br>
+          「…奇遇だな。だが、これも縁か」<br><br>
+          説得は届いた。だが、じゃんけんはあいこ。<br>
+          黒崎の連勝は止まったが、あなたの勝利でもない。
+        `;
+      } else if (outcome === "lose-guard") {
+        $("result-title").textContent = "💀 拒絶された";
+        $("result-line").innerHTML = `
+          ${handLine}<br><br>
+          黒崎は無言だった。<br>
+          「もう、お前の言葉を聞く耳はない」<br><br>
+          言葉が届く前に、心が閉じてしまった。
+        `;
+      } else if (outcome === "lose-turn" && youWon) {
+        $("result-title").textContent = "🍀 棚ぼた勝利";
+        $("result-line").innerHTML = `
+          ${handLine}<br><br>
+          「…運も実力のうち、か」<br><br>
+          説得は届かなかった。だが、じゃんけんでは勝てた。<br>
+          黒崎は素直に握手を求めてきた。
+        `;
+      } else if (outcome === "lose-turn" && jankenResult === "draw") {
+        $("result-title").textContent = "↔️ あいこ";
+        $("result-line").innerHTML = `
+          ${handLine}<br><br>
+          「…仕切り直しだな。次があれば、もっと話そう」<br><br>
+          勝負はつかなかった。
+        `;
+      } else {
+        $("result-title").textContent = "⏱ 敗北";
+        $("result-line").innerHTML = `
+          ${handLine}<br><br>
+          黒崎は鋭く手を出した。<br>
+          「悪くない議論だった。だが、まだ俺を動かすには足りん」<br><br>
+          あと一歩、足りなかった。
+        `;
+      }
+    }
+
+    // ===== イベント登録 =====
+    document.querySelectorAll("#title-screen button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        startGame(parseInt(btn.dataset.turns, 10));
+      });
+    });
+
+    document.querySelectorAll("#janken-screen .hands button").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        playJanken(btn.dataset.hand);
+      });
+    });
+
+    $("restart").addEventListener("click", () => {
+      show("title");
+    });
+
+    // 初期状態の見た目を反映
+    renderState();
+  </script>
+</body>
+</html>
